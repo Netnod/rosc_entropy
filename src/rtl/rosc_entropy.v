@@ -45,11 +45,6 @@ module rosc_entropy(
                     input wire  [7 : 0]  address,
                     input wire  [31 : 0] write_data,
                     output wire [31 : 0] read_data,
-                    output wire          error,
-
-                    input wire           discard,
-                    input wire           test_mode,
-                    output wire          security_error,
 
                     output wire          entropy_enabled,
                     output wire [31 : 0] entropy_data,
@@ -118,15 +113,12 @@ module rosc_entropy(
 
 
   reg [31 : 0]  tmp_read_data;
-  reg           tmp_error;
 
 
   //----------------------------------------------------------------
   // Concurrent connectivity for ports etc.
   //----------------------------------------------------------------
   assign read_data            = tmp_read_data;
-  assign error                = tmp_error;
-  assign security_error       = 0;
 
   assign entropy_enabled      = enable_reg;
   assign entropy_data         = internal_entropy_data;
@@ -201,15 +193,14 @@ module rosc_entropy(
   //----------------------------------------------------------------
   always @*
     begin : api_logic
-      enable_new      = 0;
-      enable_we       = 0;
-      op_a_new        = 0;
-      op_a_we         = 0;
-      op_b_new        = 0;
-      op_b_we         = 0;
-      api_entropy_ack = 0;
-      tmp_read_data   = 32'h00000000;
-      tmp_error       = 0;
+      enable_new      = 1'h0;
+      enable_we       = 1'h0;
+      op_a_new        = 32'h0;
+      op_a_we         = 1'h0;
+      op_b_new        = 32'h0;
+      op_b_we         = 1'h0;
+      api_entropy_ack = 1'h0;
+      tmp_read_data   = 32'h0;
 
       if (cs)
         begin
@@ -237,7 +228,6 @@ module rosc_entropy(
 
                 default:
                   begin
-                    tmp_error = 1;
                   end
               endcase // case (address)
             end
@@ -297,7 +287,6 @@ module rosc_entropy(
 
                 default:
                   begin
-                    tmp_error = 1;
                   end
               endcase // case (address)
             end
