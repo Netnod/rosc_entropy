@@ -38,7 +38,7 @@
 
 module rosc_entropy_core(
                          input wire           clk,
-                         input wire           reset_n,
+                         input wire           reset,
 
                          input wire           enable,
 
@@ -50,10 +50,7 @@ module rosc_entropy_core(
 
                          output wire [31 : 0] entropy_data,
                          output wire          entropy_valid,
-                         input wire           entropy_ack,
-
-                         output wire [7 : 0]  debug,
-                         input wire           debug_update
+                         input wire           entropy_ack
                         );
 
 
@@ -63,7 +60,6 @@ module rosc_entropy_core(
   // 1M cycles warmup delay.
   localparam WARMUP_CYCLES     = 24'h0f4240;
   localparam ADDER_WIDTH       = 1;
-  localparam DEBUG_DELAY       = 32'h002c4b40;
   localparam NUM_SHIFT_BITS    = 8'h20;
   localparam SAMPLE_CLK_CYCLES = 8'hff;
 
@@ -87,9 +83,6 @@ module rosc_entropy_core(
   reg          entropy_valid_new;
   reg          entropy_valid_we;
 
-  reg          bit_we_reg;
-  reg          bit_we_new;
-
   reg [7 : 0]  bit_ctr_reg;
   reg [7 : 0]  bit_ctr_new;
   reg          bit_ctr_inc;
@@ -97,15 +90,6 @@ module rosc_entropy_core(
 
   reg [7 : 0]  sample_ctr_reg;
   reg [7 : 0]  sample_ctr_new;
-
-  reg [31 : 0] debug_delay_ctr_reg;
-  reg [31 : 0] debug_delay_ctr_new;
-  reg          debug_delay_ctr_we;
-
-  reg [7 : 0]  debug_reg;
-  reg          debug_we;
-
-  reg          debug_update_reg;
 
 
   //----------------------------------------------------------------
@@ -125,7 +109,6 @@ module rosc_entropy_core(
   assign raw_entropy   = ent_shift_reg;
   assign entropy_data  = entropy_reg;
   assign entropy_valid = entropy_valid_reg & warmup_done;
-  assign debug         = debug_reg;
 
 
   //----------------------------------------------------------------
@@ -142,9 +125,9 @@ module rosc_entropy_core(
       begin: oscillators
         rosc #(.WIDTH(ADDER_WIDTH)) rosc_array(.clk(clk),
                                      .we(rosc_we),
-                                     .reset_n(reset_n),
-                                     .opa(opa[(ADDER_WIDTH - 1) : 0]),
-                                     .opb(opb[(ADDER_WIDTH - 1) : 0]),
+                                     .reset(reset),
+                                     .opa(opa[i]),
+                                     .opb(opb[i]),
                                      .dout(rosc_dout[i])
                                     );
       end
@@ -156,26 +139,22 @@ module rosc_entropy_core(
   //
   // Update functionality for all registers in the core.
   // All registers are positive edge triggered with asynchronous
-  // active low reset.
+  // active high reset.
   //----------------------------------------------------------------
-  always @ (posedge clk or negedge reset_n)
+  always @ (posedge clk or posedge reset)
     begin
-      if (!reset_n)
+      if (reset)
         begin
           ent_shift_reg        <= 32'h0;
           entropy_reg          <= 32'h0;
           entropy_valid_reg    <= 1'h0;
           bit_ctr_reg          <= 8'h0;
           sample_ctr_reg       <= 8'h0;
-          debug_delay_ctr_reg  <= 32'h0;
           warmup_cycle_ctr_reg <= WARMUP_CYCLES;
-          debug_reg            <= 8'h0;
-          debug_update_reg     <= 1'h0;
         end
       else
         begin
           sample_ctr_reg   <= sample_ctr_new;
-          debug_update_reg <= debug_update;
 
           if (warmup_cycle_ctr_we)
             warmup_cycle_ctr_reg <= warmup_cycle_ctr_new;
@@ -199,44 +178,8 @@ module rosc_entropy_core(
             begin
               entropy_valid_reg <= entropy_valid_new;
             end
-
-          if (debug_delay_ctr_we)
-            begin
-              debug_delay_ctr_reg <= debug_delay_ctr_new;
-            end
-
-          if (debug_we)
-            begin
-              debug_reg <= ent_shift_reg[7 : 0];
-            end
          end
     end // reg_update
-
-
-  //----------------------------------------------------------------
-  // debug_out
-  //
-  // Logic that updates the debug port.
-  //----------------------------------------------------------------
-  always @*
-    begin : debug_out
-      debug_delay_ctr_new = 32'h00000000;
-      debug_delay_ctr_we  = 0;
-      debug_we            = 0;
-
-      if (debug_update_reg)
-        begin
-          debug_delay_ctr_new = debug_delay_ctr_reg + 1'b1;
-          debug_delay_ctr_we  = 1;
-        end
-
-      if (debug_delay_ctr_reg == DEBUG_DELAY)
-        begin
-          debug_delay_ctr_new = 32'h00000000;
-          debug_delay_ctr_we  = 1;
-          debug_we            = 1;
-        end
-    end
 
 
   //----------------------------------------------------------------

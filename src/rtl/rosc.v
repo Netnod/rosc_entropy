@@ -41,7 +41,7 @@
 module rosc #(parameter WIDTH = 2)
              (
               input wire                   clk,
-              input wire                   reset_n,
+              input wire                   reset,
 
               input wire                   we,
 
@@ -67,9 +67,9 @@ module rosc #(parameter WIDTH = 2)
   //----------------------------------------------------------------
   // reg_update
   //----------------------------------------------------------------
-     always @ (posedge clk or negedge reset_n)
+     always @ (posedge clk or posedge reset)
        begin
-         if (!reset_n)
+         if (reset)
            begin
              dout_reg <= 1'b0;
            end
